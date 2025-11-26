@@ -1,17 +1,15 @@
 /**
  * Centralized Asset Management
- * Upload your images/PDFs to a host (like Imgur, S3, Firebase Storage)
- * and paste the URLs here.
+ * 
+ * INSTRUCTIONS:
+ * 1. Ensure you have a folder structure: public/assets/img/
+ * 2. Place the files exactly as named below in that folder.
  */
 
 export const ASSETS = {
-  // 1. YOUR LOGO
-  // Use a transparent PNG for best results on the PDF.
-  LOGO: "https://cdn-icons-png.flaticon.com/512/2674/2674486.png",
+  // Matches "Logo.png" from screenshot (Case Sensitive)
+  LOGO: "/assets/img/Logo.png",
 
-  // 2. PDF TEMPLATE (Optional)
-  // If you have a pre-designed letterhead as a PDF, paste the URL here.
-  // The system will overlay the text onto this file.
-  // If you leave this empty (""), the system will generate a plain white A4 sheet.
-  PDF_TEMPLATE: "", 
+  // Matches "Template file .pdf" from screenshot (Spaces encoded as %20)
+  PDF_TEMPLATE: "/assets/img/Template%20file%20.pdf", 
 };

@@ -13,11 +13,17 @@ const Header: React.FC<HeaderProps> = ({ isDark, toggleTheme }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         <div className="flex items-center gap-4">
           {/* Logo Section */}
-          <div className="h-12 w-12 rounded-full flex items-center justify-center overflow-hidden bg-white shadow-md border border-gray-100">
+          <div className="h-12 w-12 rounded-full flex items-center justify-center overflow-hidden bg-white shadow-md border border-gray-100 p-1">
             <img 
               src={ASSETS.LOGO}
               alt="Itthad Dairy Logo" 
-              className="h-10 w-10 object-contain"
+              className="h-full w-full object-contain"
+              onError={(e) => {
+                // Fallback if logo.png is not found yet
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement?.classList.add('bg-blue-600');
+                e.currentTarget.parentElement!.innerHTML = '<span class="text-white font-bold text-lg">ID</span>';
+              }}
             />
           </div>
           <div>

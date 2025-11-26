@@ -8,23 +8,20 @@ export const generateSlip = async (
 ): Promise<Uint8Array> => {
   let pdfDoc: PDFDocument;
 
-  // 1. Try to load external Template if provided in assets
-  if (ASSETS.PDF_TEMPLATE) {
-    try {
-      const existingPdfBytes = await fetch(ASSETS.PDF_TEMPLATE).then(res => res.arrayBuffer());
-      pdfDoc = await PDFDocument.load(existingPdfBytes);
-    } catch (e) {
-      console.warn("Failed to load template from assets, creating new document.", e);
-      pdfDoc = await PDFDocument.create();
-      pdfDoc.addPage([595.28, 841.89]); // A4
-    }
-  } else {
-    // Create new blank A4
+  // 1. Try to load external Template
+  try {
+    const existingPdfBytes = await fetch(ASSETS.PDF_TEMPLATE).then(res => {
+      if (!res.ok) throw new Error("Template not found");
+      return res.arrayBuffer();
+    });
+    pdfDoc = await PDFDocument.load(existingPdfBytes);
+  } catch (e) {
+    console.warn("Template not found, creating blank A4.", e);
     pdfDoc = await PDFDocument.create();
-    pdfDoc.addPage([595.28, 841.89]); // A4 Size
+    pdfDoc.addPage([595.28, 841.89]); // A4
   }
 
-  // Get the first page (either from template or new)
+  // Get the first page
   const page = pdfDoc.getPages()[0];
   const { width, height } = page.getSize();
   
@@ -34,150 +31,173 @@ export const generateSlip = async (
 
   // --- 1. HEADER SECTION ---
   
-  // Try to load logo (if CORS allows, otherwise skip)
+  // Attempt to load Logo
   try {
-    const logoImageBytes = await fetch(ASSETS.LOGO).then((res) => res.arrayBuffer());
-    // Determine image type based on simple heuristic or try/catch both
-    let logoImage;
-    try {
-        logoImage = await pdfDoc.embedPng(logoImageBytes);
-    } catch {
-        logoImage = await pdfDoc.embedJpg(logoImageBytes);
-    }
-    
-    const logoDims = logoImage.scale(0.2); // Adjust scale
-    
-    // Draw Logo on top left
-    page.drawImage(logoImage, {
-      x: 50,
-      y: height - 150,
-      width: logoDims.width,
-      height: logoDims.height,
-    });
-    
-    // Draw Text "ITTHAD DAIRY FARM" below logo
-    // Only draw these if we assume the template doesn't have them
-    // For now, we draw them to match the screenshot requested.
-    page.drawText('ITTHAD', {
-      x: 50,
-      y: height - 165,
-      size: 14,
-      font: helveticaBold,
-      color: rgb(0.1, 0.3, 0.1), // Greenish
-    });
-    page.drawText('DAIRY FARM', {
-        x: 50,
-        y: height - 180,
-        size: 10,
-        font: helveticaBold,
-        color: rgb(0.4, 0.2, 0), // Brownish
+    const logoRes = await fetch(ASSETS.LOGO);
+    if (logoRes.ok) {
+      const logoImageBytes = await logoRes.arrayBuffer();
+      let logoImage;
+      try {
+          logoImage = await pdfDoc.embedPng(logoImageBytes);
+      } catch {
+          logoImage = await pdfDoc.embedJpg(logoImageBytes);
+      }
+      
+      const logoDims = logoImage.scale(0.25); // Adjusted scale to match screenshot
+      
+      // Draw Logo on top left
+      page.drawImage(logoImage, {
+        x: 40,
+        y: height - 140, // Adjusted Y to match screenshot
+        width: logoDims.width,
+        height: logoDims.height,
       });
-
+    }
   } catch (e) {
-    // Fallback if logo fails
-    console.warn("Logo fetch failed or CORS issue", e);
+    console.warn("Logo load failed", e);
   }
 
+  // Center Text Header
+  const centerX = width / 2;
+  const headerY = height - 60;
+
   // Company Name
-  page.drawText('ITTHAD DAIRY FARM', {
-    x: 250,
-    y: height - 80,
-    size: 20,
+  const titleText = 'ITTHAD DAIRY FARM';
+  const titleWidth = helveticaBold.widthOfTextAtSize(titleText, 22);
+  page.drawText(titleText, {
+    x: (width - titleWidth) / 2, // Centered
+    y: headerY,
+    size: 22,
     font: helveticaBold,
     color: rgb(0, 0, 0),
   });
 
   // Address
-  page.drawText('Chak Mathroma, Darul Fazal, Rabwah', {
-    x: 250,
-    y: height - 100,
+  const addressText = 'Chak Mathroma, Darul Fazal, Rabwah';
+  const addressWidth = helvetica.widthOfTextAtSize(addressText, 10);
+  page.drawText(addressText, {
+    x: (width - addressWidth) / 2, // Centered
+    y: headerY - 20,
     size: 10,
     font: helvetica,
     color: rgb(0, 0, 0),
   });
 
   // Contact
-  page.drawText('Contact: 0331-6198039', {
-    x: 250,
-    y: height - 115,
+  const contactText = 'Contact: 0331-6198039';
+  const contactWidth = helvetica.widthOfTextAtSize(contactText, 10);
+  page.drawText(contactText, {
+    x: (width - contactWidth) / 2, // Centered
+    y: headerY - 35,
     size: 10,
     font: helvetica,
     color: rgb(0, 0, 0),
   });
 
   // Slogan
-  page.drawText('Love For All', {
-    x: 250,
-    y: height - 130,
+  const sloganText = 'Love For All';
+  const sloganWidth = helvetica.widthOfTextAtSize(sloganText, 10);
+  page.drawText(sloganText, {
+    x: (width - sloganWidth) / 2, // Centered
+    y: headerY - 50,
     size: 10,
     font: helvetica,
     color: rgb(0, 0, 0),
   });
 
-  // --- 2. CUSTOMER & INVOICE INFO ---
+  // --- 2. BILL TO & INVOICE DETAILS ---
   
-  const sectionTop = height - 200;
+  const infoY = height - 180;
+  const leftMargin = 50;
+  const rightColX = 400;
 
-  // Left Side: Customer
-  page.drawText(`Bill To: ${customer.name}`, { x: 50, y: sectionTop, size: 11, font: helveticaBold });
-  page.drawText(`Phone: ${customer.phone}`, { x: 50, y: sectionTop - 15, size: 10, font: helvetica });
-  page.drawText(`Address: ${customer.address}`, { x: 50, y: sectionTop - 30, size: 10, font: helvetica });
+  // Left: Customer
+  page.drawText(`Bill To: ${customer.name}`, { 
+    x: leftMargin, y: infoY, size: 12, font: helveticaBold 
+  });
+  page.drawText(`Phone: ${customer.phone}`, { 
+    x: leftMargin, y: infoY - 18, size: 11, font: helvetica 
+  });
+  page.drawText(`Address: ${customer.address}`, { 
+    x: leftMargin, y: infoY - 36, size: 11, font: helvetica 
+  });
 
-  // Right Side: Invoice Info
-  const invoiceNo = Math.floor(1000 + Math.random() * 9000);
-  const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  // Right: Invoice Info
+  const invoiceNo = Math.floor(100000 + Math.random() * 900000).toString().substring(0, 4); // 4 digit random
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   
-  page.drawText(`Invoice No: ${invoiceNo}`, { x: 400, y: sectionTop, size: 10, font: helvetica });
-  page.drawText(`Date: ${dateStr}`, { x: 400, y: sectionTop - 15, size: 10, font: helvetica });
-
+  page.drawText(`Invoice No: ${1001 + Math.floor(Math.random() * 100)}`, { 
+    x: rightColX, y: infoY, size: 11, font: helvetica 
+  });
+  page.drawText(`Date: ${dateStr}`, { 
+    x: rightColX, y: infoY - 18, size: 11, font: helvetica 
+  });
 
   // --- 3. TABLE ---
   
-  const tableTop = sectionTop - 60;
-  
-  // Top Line
-  page.drawLine({ start: { x: 50, y: tableTop }, end: { x: 550, y: tableTop }, thickness: 1.5, color: rgb(0, 0, 0) });
-  
+  const tableTop = infoY - 70;
+  const tableBottom = tableTop - 30; // Height of header row
+
+  // Top Line (Thick)
+  page.drawLine({ 
+    start: { x: leftMargin, y: tableTop }, 
+    end: { x: width - leftMargin, y: tableTop }, 
+    thickness: 1.5, 
+    color: rgb(0, 0, 0) 
+  });
+
   // Headers
-  const colY = tableTop - 15;
-  page.drawText('Description', { x: 60, y: colY, size: 11, font: helveticaBold });
-  page.drawText('Quantity', { x: 250, y: colY, size: 11, font: helveticaBold });
-  page.drawText('Unit Price', { x: 350, y: colY, size: 11, font: helveticaBold });
-  page.drawText('Amount', { x: 480, y: colY, size: 11, font: helveticaBold });
+  const col1X = 60;  // Description
+  const col2X = 300; // Quantity
+  const col3X = 400; // Unit Price
+  const col4X = 480; // Amount
 
-  // Bottom Line of Header
-  page.drawLine({ start: { x: 50, y: tableTop - 25 }, end: { x: 550, y: tableTop - 25 }, thickness: 1, color: rgb(0, 0, 0) });
+  const headerTextY = tableTop - 18;
+  page.drawText('Description', { x: col1X, y: headerTextY, size: 12, font: helveticaBold });
+  page.drawText('Quantity', { x: col2X, y: headerTextY, size: 12, font: helveticaBold });
+  page.drawText('Unit Price', { x: col3X, y: headerTextY, size: 12, font: helveticaBold });
+  page.drawText('Amount', { x: col4X, y: headerTextY, size: 12, font: helveticaBold });
 
-  // Row Data
-  const rowY = tableTop - 50;
-  page.drawText('Milk (Buffalo)', { x: 60, y: rowY, size: 11, font: helvetica });
-  page.drawText(`${billing.totalLiters} Liters`, { x: 250, y: rowY, size: 11, font: helvetica });
-  page.drawText(`Rs. ${billing.ratePerLiter}`, { x: 350, y: rowY, size: 11, font: helvetica });
-  page.drawText(`Rs. ${billing.totalAmount}`, { x: 480, y: rowY, size: 11, font: helvetica });
+  // Bottom Line (Thin)
+  page.drawLine({ 
+    start: { x: leftMargin, y: tableBottom }, 
+    end: { x: width - leftMargin, y: tableBottom }, 
+    thickness: 1, 
+    color: rgb(0, 0, 0) 
+  });
 
+  // Data Row
+  const rowY = tableBottom - 25;
+  page.drawText('Milk (Buffalo)', { x: col1X, y: rowY, size: 11, font: helvetica });
+  page.drawText(`${billing.totalLiters} Liters`, { x: col2X, y: rowY, size: 11, font: helvetica });
+  page.drawText(`Rs. ${billing.ratePerLiter}`, { x: col3X, y: rowY, size: 11, font: helvetica });
+  page.drawText(`Rs. ${billing.totalAmount}`, { x: col4X, y: rowY, size: 11, font: helvetica });
 
   // --- 4. TOTALS SECTION ---
   
-  const totalsTop = rowY - 50;
-  
-  // Total
-  page.drawText('Total:', { x: 380, y: totalsTop, size: 11, font: helveticaBold });
-  page.drawText(`Rs. ${billing.totalAmount}`, { x: 480, y: totalsTop, size: 11, font: helveticaBold });
-  
+  const totalsY = rowY - 60;
+  const labelX = 380;
+  const valueX = 480;
+
+  // Total Label & Value
+  page.drawText('Total:', { x: labelX, y: totalsY, size: 12, font: helveticaBold });
+  page.drawText(`Rs. ${billing.totalAmount}`, { x: valueX, y: totalsY, size: 12, font: helveticaBold });
+
   // Due Amount
-  page.drawText('Due Amount:', { x: 380, y: totalsTop - 20, size: 11, font: helvetica });
-  page.drawText('Rs. 0', { x: 480, y: totalsTop - 20, size: 11, font: helvetica });
+  page.drawText('Due Amount:', { x: labelX, y: totalsY - 20, size: 11, font: helvetica });
+  page.drawText('Rs. 0', { x: valueX, y: totalsY - 20, size: 11, font: helvetica });
 
   // Payable
-  page.drawText('Payable:', { x: 380, y: totalsTop - 40, size: 11, font: helvetica });
-  page.drawText(`Rs. ${billing.totalAmount}`, { x: 480, y: totalsTop - 40, size: 11, font: helvetica });
+  page.drawText('Payable:', { x: labelX, y: totalsY - 40, size: 11, font: helvetica });
+  page.drawText(`Rs. ${billing.totalAmount}`, { x: valueX, y: totalsY - 40, size: 11, font: helvetica });
 
 
   // --- 5. FOOTER ---
   
-  const footerY = 150;
+  // We place this above the template's Urdu footer if it exists.
+  // The screenshot shows it quite low.
+  const footerY = 180; 
   
-  // Payment Term Line
   const paymentText = "Payment Term : Account Holder : Inzimam Ul Haq : 03065278010 : JazzCash";
   const paymentWidth = helvetica.widthOfTextAtSize(paymentText, 9);
   page.drawText(paymentText, { 
@@ -187,7 +207,6 @@ export const generateSlip = async (
       font: helvetica 
   });
 
-  // Thank you message
   const thanksText = "Thank you for your business!";
   const thanksWidth = helveticaBold.widthOfTextAtSize(thanksText, 12);
   page.drawText(thanksText, { 
