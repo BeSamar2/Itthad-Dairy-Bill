@@ -16,7 +16,7 @@ export const generateSlip = async (
     });
     pdfDoc = await PDFDocument.load(existingPdfBytes);
   } catch (e) {
-    console.warn("Template not found, creating blank A4.", e);
+    console.warn("Template not found at " + ASSETS.PDF_TEMPLATE + ", creating blank A4.", e);
     pdfDoc = await PDFDocument.create();
     pdfDoc.addPage([595.28, 841.89]); // A4
   }
@@ -31,7 +31,7 @@ export const generateSlip = async (
 
   // --- 1. HEADER SECTION ---
   
-  // Attempt to load Logo
+  // Attempt to load Logo onto the PDF
   try {
     const logoRes = await fetch(ASSETS.LOGO);
     if (logoRes.ok) {
@@ -54,7 +54,7 @@ export const generateSlip = async (
       });
     }
   } catch (e) {
-    console.warn("Logo load failed", e);
+    console.warn("Logo load failed for PDF", e);
   }
 
   // Center Text Header
@@ -195,7 +195,6 @@ export const generateSlip = async (
   // --- 5. FOOTER ---
   
   // We place this above the template's Urdu footer if it exists.
-  // The screenshot shows it quite low.
   const footerY = 180; 
   
   const paymentText = "Payment Term : Account Holder : Inzimam Ul Haq : 03065278010 : JazzCash";
