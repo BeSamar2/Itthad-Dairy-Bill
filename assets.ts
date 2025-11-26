@@ -10,7 +10,7 @@ export const ASSETS = {
   // 1. YOUR LOGO
   // Pointing to local file system relative to index.html
   // Case Sensitive: "Logo.png" (Capital L)
-  LOGO: "./assets/Logo.png",
+  LOGO: "BeSamar2/Itthad-Dairy-Bill/assets/Logo.png",
 
   // 2. YOUR TEMPLATE
   // Pointing to local file system relative to index.html
