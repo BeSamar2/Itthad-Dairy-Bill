@@ -16,5 +16,5 @@ export const ASSETS = {
   // Pointing to local file system relative to index.html
   // Spaces must be encoded as %20
   // Filename: "Template file .pdf" -> "Template%20file%20.pdf"
-  PDF_TEMPLATE: "./assets/Template%20file%20.pdf", 
+  PDF_TEMPLATE: "BeSamar2/Itthad-Dairy-Bill/assets/Template file .pdf", 
 };
