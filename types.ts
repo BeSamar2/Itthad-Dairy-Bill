@@ -13,5 +13,6 @@ export interface BillingData {
   litersPerDay: number;
   totalLiters: number;
   totalAmount: number;
+  dueAmount?: number; // Added optional due amount
   isManualTotal: boolean; // if true, user overrode calculation
 }

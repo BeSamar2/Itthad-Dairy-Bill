@@ -179,17 +179,20 @@ export const generateSlip = async (
   const labelX = 380;
   const valueX = 480;
 
+  const dueAmount = billing.dueAmount || 0;
+  const payable = billing.totalAmount + dueAmount;
+
   // Total Label & Value
   page.drawText('Total:', { x: labelX, y: totalsY, size: 12, font: helveticaBold });
   page.drawText(`Rs. ${billing.totalAmount}`, { x: valueX, y: totalsY, size: 12, font: helveticaBold });
 
   // Due Amount
   page.drawText('Due Amount:', { x: labelX, y: totalsY - 20, size: 11, font: helvetica });
-  page.drawText('Rs. 0', { x: valueX, y: totalsY - 20, size: 11, font: helvetica });
+  page.drawText(`Rs. ${dueAmount}`, { x: valueX, y: totalsY - 20, size: 11, font: helvetica });
 
   // Payable
   page.drawText('Payable:', { x: labelX, y: totalsY - 40, size: 11, font: helvetica });
-  page.drawText(`Rs. ${billing.totalAmount}`, { x: valueX, y: totalsY - 40, size: 11, font: helvetica });
+  page.drawText(`Rs. ${payable}`, { x: valueX, y: totalsY - 40, size: 11, font: helvetica });
 
 
   // --- 5. FOOTER ---
