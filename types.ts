@@ -1,3 +1,4 @@
+
 export interface CustomerData {
   name: string;
   fatherName: string;
@@ -5,15 +6,24 @@ export interface CustomerData {
   address: string;
 }
 
+export interface MilkDetails {
+  rate: number;
+  dailyLiters: number;
+  totalLiters: number;
+  amount: number;
+  isManualTotal: boolean;
+}
+
 export interface BillingData {
   month: string;
   year: number;
-  ratePerLiter: number;
   daysInMonth: number;
-  litersPerDay: number;
-  totalLiters: number;
-  totalAmount: number;
-  dueAmount?: number; // Added optional due amount
-  isManualTotal: boolean; // if true, user overrode calculation
-  milkType: 'Buffalo' | 'Cow';
+  dueAmount?: number;
+  
+  // Selection Mode
+  selection: 'Buffalo' | 'Cow' | 'Both';
+  
+  // Specific Data
+  buffalo: MilkDetails;
+  cow: MilkDetails;
 }

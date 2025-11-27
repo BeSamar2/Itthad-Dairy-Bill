@@ -1,9 +1,103 @@
+
 import React, { useState, useEffect } from 'react';
-import { CustomerData, BillingData } from './types';
+import { CustomerData, BillingData, MilkDetails } from './types';
 import { generateSlip } from './services/pdfService';
 import Header from './components/Header';
 import InputField from './components/InputField';
-import { Download, Calculator, RefreshCw } from 'lucide-react';
+import { Download, Calculator, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+
+// --- HELPER COMPONENT FOR MILK INPUTS ---
+interface MilkInputSectionProps {
+  title: string;
+  data: MilkDetails;
+  daysInMonth: number;
+  onChange: (updated: MilkDetails) => void;
+  colorClass: string;
+}
+
+const MilkInputSection: React.FC<MilkInputSectionProps> = ({ title, data, daysInMonth, onChange, colorClass }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Auto-calc effect internal to this section
+  useEffect(() => {
+    if (!data.isManualTotal) {
+      const calcTotal = data.dailyLiters * daysInMonth;
+      const calcAmount = calcTotal * data.rate;
+      // Only update if values actually changed to prevent infinite loops
+      if (calcTotal !== data.totalLiters || calcAmount !== data.amount) {
+        onChange({ ...data, totalLiters: calcTotal, amount: calcAmount });
+      }
+    } else {
+      const calcAmount = data.totalLiters * data.rate;
+      if (calcAmount !== data.amount) {
+         onChange({ ...data, amount: calcAmount });
+      }
+    }
+  }, [data.dailyLiters, data.rate, data.isManualTotal, data.totalLiters, daysInMonth]);
+
+  return (
+    <div className={`rounded-xl border ${colorClass} overflow-hidden mb-4 transition-all duration-300`}>
+      <div 
+        className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 flex justify-between items-center cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <h4 className="font-bold text-gray-800 dark:text-gray-200">{title} Milk Details</h4>
+        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      </div>
+      
+      {isExpanded && (
+        <div className="p-4 bg-white dark:bg-gray-800 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InputField 
+              label="Rate per Liter (Rs)" 
+              type="number" 
+              value={data.rate} 
+              onChange={(e) => onChange({ ...data, rate: parseFloat(e.target.value) || 0 })}
+            />
+            <InputField 
+              label="Liters per Day" 
+              type="number"
+              step="0.5" 
+              disabled={data.isManualTotal}
+              value={data.dailyLiters} 
+              onChange={(e) => onChange({ ...data, dailyLiters: parseFloat(e.target.value) || 0 })}
+            />
+          </div>
+
+          {/* Manual Override Toggle */}
+          <div className="flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              id={`manual-${title}`}
+              checked={data.isManualTotal}
+              onChange={(e) => onChange({ ...data, isManualTotal: e.target.checked })}
+              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+            />
+            <label htmlFor={`manual-${title}`} className="text-sm text-gray-600 dark:text-gray-400 select-none cursor-pointer">
+              Override calculation (Enter total manually)
+            </label>
+          </div>
+
+          <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-100 dark:border-gray-700">
+             <InputField 
+              label={`Total ${title} Liters`} 
+              type="number"
+              step="0.5"
+              value={data.totalLiters}
+              disabled={!data.isManualTotal}
+              onChange={(e) => onChange({ ...data, totalLiters: parseFloat(e.target.value) || 0 })}
+              className={data.isManualTotal ? "opacity-100" : "opacity-75"}
+            />
+            <div className="mt-2 text-right text-sm font-medium text-gray-500">
+              Subtotal: Rs. {data.amount.toLocaleString()}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 const App: React.FC = () => {
   // --- THEME STATE ---
@@ -16,7 +110,6 @@ const App: React.FC = () => {
   });
 
   // --- APP STATE ---
-  // Default state is now BLANK to show placeholders
   const [customer, setCustomer] = useState<CustomerData>({
     name: '',
     fatherName: '',
@@ -24,17 +117,22 @@ const App: React.FC = () => {
     address: ''
   });
 
+  const defaultMilkState: MilkDetails = {
+    rate: 200,
+    dailyLiters: 5,
+    totalLiters: 0,
+    amount: 0,
+    isManualTotal: false
+  };
+
   const [billing, setBilling] = useState<BillingData>({
     month: new Date().getMonth().toString(), // 0-11
     year: new Date().getFullYear(),
-    ratePerLiter: 200,
-    daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(), // Auto calc current month days
-    litersPerDay: 5,
-    totalLiters: 0,
-    totalAmount: 0,
+    daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
     dueAmount: 0,
-    isManualTotal: false,
-    milkType: 'Buffalo',
+    selection: 'Buffalo',
+    buffalo: { ...defaultMilkState },
+    cow: { ...defaultMilkState, rate: 180 }, // Default cow rate slightly different usually
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -61,23 +159,6 @@ const App: React.FC = () => {
     setBilling(prev => ({ ...prev, daysInMonth: days }));
   }, [billing.month, billing.year]);
 
-  // Auto-calculate totals
-  useEffect(() => {
-    if (!billing.isManualTotal) {
-      const calculatedLiters = billing.daysInMonth * billing.litersPerDay;
-      setBilling(prev => ({
-        ...prev,
-        totalLiters: calculatedLiters,
-        totalAmount: calculatedLiters * prev.ratePerLiter
-      }));
-    } else {
-      // If manual total liters, just update amount
-      setBilling(prev => ({
-        ...prev,
-        totalAmount: prev.totalLiters * prev.ratePerLiter
-      }));
-    }
-  }, [billing.daysInMonth, billing.litersPerDay, billing.ratePerLiter, billing.isManualTotal, billing.totalLiters]);
 
   // --- HANDLERS ---
 
@@ -86,14 +167,13 @@ const App: React.FC = () => {
     try {
       const pdfBytes = await generateSlip(customer, billing);
       
-      // Create a blob and download
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      // Filename: Invoice_CustomerName_Month_Year.pdf
       const safeName = customer.name.replace(/[^a-z0-9]/gi, '_').substring(0, 20) || 'Customer';
-      link.setAttribute('download', `Invoice_${safeName}_${currentMonthName}_${billing.year}.pdf`);
+      const monthName = new Date(0, parseInt(billing.month)).toLocaleString('default', { month: 'long' });
+      link.setAttribute('download', `Bill_${safeName}_${monthName}_${billing.year}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
@@ -111,8 +191,13 @@ const App: React.FC = () => {
     }
   };
 
+  // --- CALCULATIONS FOR SUMMARY ---
   const currentMonthName = new Date(0, parseInt(billing.month)).toLocaleString('default', { month: 'long' });
-  const totalPayable = billing.totalAmount + (billing.dueAmount || 0);
+  
+  const buffaloTotal = billing.selection === 'Buffalo' || billing.selection === 'Both' ? billing.buffalo.amount : 0;
+  const cowTotal = billing.selection === 'Cow' || billing.selection === 'Both' ? billing.cow.amount : 0;
+  const currentBillTotal = buffaloTotal + cowTotal;
+  const totalPayable = currentBillTotal + (billing.dueAmount || 0);
 
   return (
     <div className="min-h-screen pb-12 transition-colors duration-200">
@@ -170,33 +255,6 @@ const App: React.FC = () => {
               
               <div className="p-6 space-y-6">
                 
-                {/* Milk Type Toggle */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-100 dark:border-gray-700">
-                   <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Milk Type</label>
-                   <div className="flex bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
-                      <button
-                        onClick={() => setBilling({...billing, milkType: 'Buffalo'})}
-                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
-                          billing.milkType === 'Buffalo' 
-                          ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm' 
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-                        }`}
-                      >
-                        Buffalo
-                      </button>
-                      <button
-                        onClick={() => setBilling({...billing, milkType: 'Cow'})}
-                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
-                          billing.milkType === 'Cow' 
-                          ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm' 
-                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
-                        }`}
-                      >
-                        Cow
-                      </button>
-                   </div>
-                </div>
-
                 {/* Month Selection */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col">
@@ -219,80 +277,75 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                <hr className="border-gray-100 dark:border-gray-700" />
-
-                {/* Calculation Inputs */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <InputField 
-                    label="Rate per Liter (Rs)" 
-                    type="number" 
-                    value={billing.ratePerLiter} 
-                    onChange={(e) => setBilling({...billing, ratePerLiter: parseFloat(e.target.value) || 0})}
-                  />
-                  
-                  <InputField 
-                    label="Liters per Day" 
-                    type="number"
-                    step="0.5" 
-                    disabled={billing.isManualTotal}
-                    value={billing.litersPerDay} 
-                    onChange={(e) => setBilling({...billing, litersPerDay: parseFloat(e.target.value) || 0})}
-                  />
-
-                  <InputField 
-                    label="Days in Month" 
-                    type="number" 
-                    disabled={true} // Auto-calculated now
-                    value={billing.daysInMonth} 
-                    className="opacity-75"
-                    onChange={(e) => setBilling({...billing, daysInMonth: parseInt(e.target.value) || 0})}
-                  />
-                </div>
-
-                {/* Manual Override Toggle */}
-                <div className="flex items-center gap-2 mt-2">
-                  <input 
-                    type="checkbox" 
-                    id="manualOverride"
-                    checked={billing.isManualTotal}
-                    onChange={(e) => setBilling({...billing, isManualTotal: e.target.checked})}
-                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600"
-                  />
-                  <label htmlFor="manualOverride" className="text-sm text-gray-600 dark:text-gray-400 select-none cursor-pointer">
-                    Enter Total Liters manually (Override daily calculation)
-                  </label>
-                </div>
-
-                {/* Total Liters (Calculated or Manual) */}
-                 <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg border border-gray-200 dark:border-gray-700 transition-colors grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InputField 
-                      label="Total Liters" 
-                      type="number"
-                      step="0.5"
-                      value={billing.totalLiters}
-                      disabled={!billing.isManualTotal}
-                      onChange={(e) => setBilling({...billing, totalLiters: parseFloat(e.target.value) || 0})}
-                      className={billing.isManualTotal ? "opacity-100" : "opacity-75"}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <InputField 
+                      label="Days in Month" 
+                      type="number" 
+                      disabled={true} 
+                      value={billing.daysInMonth} 
+                      className="opacity-75"
                     />
-                    
                     <InputField 
-                      label="Previous Due Amount (Optional)" 
+                      label="Previous Due Amount" 
                       type="number"
                       value={billing.dueAmount || ''}
                       onChange={(e) => setBilling({...billing, dueAmount: parseFloat(e.target.value) || 0})}
                       placeholder="0"
                     />
-                 </div>
+                </div>
+
+                <hr className="border-gray-100 dark:border-gray-700" />
+
+                {/* Milk Type Selection */}
+                <div>
+                   <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">Select Milk Type</label>
+                   <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                      {(['Buffalo', 'Cow', 'Both'] as const).map(type => (
+                        <button
+                          key={type}
+                          onClick={() => setBilling({...billing, selection: type})}
+                          className={`flex-1 py-2 rounded-md text-sm font-medium transition-all ${
+                            billing.selection === type
+                            ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500' 
+                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                {/* DYNAMIC INPUT SECTIONS */}
+                <div className="space-y-4">
+                  {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
+                    <MilkInputSection 
+                      title="Buffalo" 
+                      data={billing.buffalo}
+                      daysInMonth={billing.daysInMonth}
+                      colorClass="border-blue-200 dark:border-blue-900"
+                      onChange={(updated) => setBilling(prev => ({...prev, buffalo: updated}))}
+                    />
+                  )}
+
+                  {(billing.selection === 'Cow' || billing.selection === 'Both') && (
+                    <MilkInputSection 
+                      title="Cow" 
+                      data={billing.cow}
+                      daysInMonth={billing.daysInMonth}
+                      colorClass="border-emerald-200 dark:border-emerald-900"
+                      onChange={(updated) => setBilling(prev => ({...prev, cow: updated}))}
+                    />
+                  )}
+                </div>
 
               </div>
             </div>
-
           </div>
 
-          {/* RIGHT COLUMN: PREVIEW & ACTION */}
+          {/* RIGHT COLUMN: SUMMARY */}
           <div className="space-y-6">
             
-            {/* Live Invoice Summary */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-blue-100 dark:border-gray-700 overflow-hidden sticky top-24 transition-colors">
               <div className="bg-blue-600 dark:bg-blue-700 p-6 text-white text-center transition-colors">
                 <h2 className="text-3xl font-bold">Rs. {totalPayable.toLocaleString()}</h2>
@@ -310,23 +363,36 @@ const App: React.FC = () => {
                     <span>Customer:</span>
                     <span className="font-medium text-gray-900 dark:text-white truncate max-w-[150px]">{customer.name || '-'}</span>
                   </div>
-                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>Milk Type:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{billing.milkType}</span>
-                  </div>
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span>Period:</span>
                     <span className="font-medium text-gray-900 dark:text-white">{currentMonthName} {billing.year}</span>
                   </div>
+
                   <div className="border-t border-dashed border-gray-200 dark:border-gray-700 my-2"></div>
-                  <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>Total Milk:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">{billing.totalLiters.toFixed(1)} L</span>
+
+                  {/* Buffalo Summary */}
+                  {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
+                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>Buffalo ({billing.buffalo.totalLiters.toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.buffalo.amount.toLocaleString()}</span>
+                     </div>
+                  )}
+
+                  {/* Cow Summary */}
+                  {(billing.selection === 'Cow' || billing.selection === 'Both') && (
+                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>Cow ({billing.cow.totalLiters.toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.cow.amount.toLocaleString()}</span>
+                     </div>
+                  )}
+
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
+
+                   <div className="flex justify-between text-gray-800 dark:text-gray-200 font-medium">
+                    <span>Current Total:</span>
+                    <span>Rs. {currentBillTotal.toLocaleString()}</span>
                   </div>
-                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                    <span>Current Bill:</span>
-                    <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.totalAmount.toLocaleString()}</span>
-                  </div>
+                  
                   {billing.dueAmount && billing.dueAmount > 0 ? (
                     <div className="flex justify-between text-red-500 dark:text-red-400">
                       <span>Previous Due:</span>
