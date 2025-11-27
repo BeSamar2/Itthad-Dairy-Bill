@@ -16,5 +16,5 @@ export const ASSETS = {
   // Pointing to the 'public' folder relative to index.html
   // Spaces must be encoded as %20
   // Filename: "Template file .pdf" -> "Template%20file%20.pdf"
-  PDF_TEMPLATE: "./public/Template%20file%20.pdf", 
+   PDF_TEMPLATE: "/Template%20file%20.pdf",
 };
