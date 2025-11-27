@@ -10,7 +10,7 @@ export const ASSETS = {
   // 1. YOUR LOGO
   // Pointing to the 'public' folder relative to index.html
   // Case Sensitive: "Logo.png" (Capital L)
-  LOGO: "./public/Logo.png",
+   LOGO: "/Logo.png",
 
   // 2. YOUR TEMPLATE
   // Pointing to the 'public' folder relative to index.html
