@@ -89,7 +89,7 @@ export const generateSlip = async (
   page.drawText(contactText, {
     x: (width - contactWidth) / 2, // Centered
     y: headerY - 35,
-    size: 10,
+    size: 12,
     font: helvetica,
     color: rgb(0, 0, 0),
   });
