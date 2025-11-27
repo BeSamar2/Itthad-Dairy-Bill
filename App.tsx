@@ -34,6 +34,7 @@ const App: React.FC = () => {
     totalAmount: 0,
     dueAmount: 0,
     isManualTotal: false,
+    milkType: 'Buffalo',
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -168,6 +169,34 @@ const App: React.FC = () => {
               </div>
               
               <div className="p-6 space-y-6">
+                
+                {/* Milk Type Toggle */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-gray-50 dark:bg-gray-900/30 rounded-lg border border-gray-100 dark:border-gray-700">
+                   <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">Milk Type</label>
+                   <div className="flex bg-gray-200 dark:bg-gray-700 p-1 rounded-lg">
+                      <button
+                        onClick={() => setBilling({...billing, milkType: 'Buffalo'})}
+                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
+                          billing.milkType === 'Buffalo' 
+                          ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm' 
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                        }`}
+                      >
+                        Buffalo
+                      </button>
+                      <button
+                        onClick={() => setBilling({...billing, milkType: 'Cow'})}
+                        className={`px-6 py-2 rounded-md text-sm font-medium transition-all ${
+                          billing.milkType === 'Cow' 
+                          ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm' 
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                        }`}
+                      >
+                        Cow
+                      </button>
+                   </div>
+                </div>
+
                 {/* Month Selection */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col">
@@ -280,6 +309,10 @@ const App: React.FC = () => {
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span>Customer:</span>
                     <span className="font-medium text-gray-900 dark:text-white truncate max-w-[150px]">{customer.name || '-'}</span>
+                  </div>
+                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                    <span>Milk Type:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{billing.milkType}</span>
                   </div>
                   <div className="flex justify-between text-gray-600 dark:text-gray-400">
                     <span>Period:</span>

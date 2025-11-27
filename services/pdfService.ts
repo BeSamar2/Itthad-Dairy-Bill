@@ -112,14 +112,27 @@ export const generateSlip = async (
   const rightColX = 400;
 
   // Left: Customer
+  let currentY = infoY;
   page.drawText(`Bill To: ${customer.name}`, { 
-    x: leftMargin, y: infoY, size: 12, font: helveticaBold 
+    x: leftMargin, y: currentY, size: 12, font: helveticaBold 
   });
+  currentY -= 18;
+
+  // Father Name (if provided)
+  if (customer.fatherName && customer.fatherName.trim() !== '') {
+    page.drawText(`S/O: ${customer.fatherName}`, { 
+      x: leftMargin, y: currentY, size: 11, font: helvetica 
+    });
+    currentY -= 18;
+  }
+
   page.drawText(`Phone: ${customer.phone}`, { 
-    x: leftMargin, y: infoY - 18, size: 11, font: helvetica 
+    x: leftMargin, y: currentY, size: 11, font: helvetica 
   });
+  currentY -= 18;
+
   page.drawText(`Address: ${customer.address}`, { 
-    x: leftMargin, y: infoY - 36, size: 11, font: helvetica 
+    x: leftMargin, y: currentY, size: 11, font: helvetica 
   });
 
   // Right: Invoice Info
@@ -168,7 +181,7 @@ export const generateSlip = async (
 
   // Data Row
   const rowY = tableBottom - 25;
-  page.drawText('Milk (Buffalo)', { x: col1X, y: rowY, size: 11, font: helvetica });
+  page.drawText(`Milk (${billing.milkType})`, { x: col1X, y: rowY, size: 11, font: helvetica });
   page.drawText(`${billing.totalLiters} Liters`, { x: col2X, y: rowY, size: 11, font: helvetica });
   page.drawText(`Rs. ${billing.ratePerLiter}`, { x: col3X, y: rowY, size: 11, font: helvetica });
   page.drawText(`Rs. ${billing.totalAmount}`, { x: col4X, y: rowY, size: 11, font: helvetica });

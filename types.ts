@@ -15,4 +15,5 @@ export interface BillingData {
   totalAmount: number;
   dueAmount?: number; // Added optional due amount
   isManualTotal: boolean; // if true, user overrode calculation
+  milkType: 'Buffalo' | 'Cow';
 }
