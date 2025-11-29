@@ -20,10 +20,11 @@ export interface BillingData {
   daysInMonth: number;
   dueAmount?: number;
   
-  // Selection Mode
-  selection: 'Buffalo' | 'Cow' | 'Both';
+  // Selection Mode: 'Both' implies Cow + Buffalo
+  selection: 'Buffalo' | 'Cow' | 'Mix' | 'Both';
   
   // Specific Data
   buffalo: MilkDetails;
   cow: MilkDetails;
+  mix: MilkDetails;
 }

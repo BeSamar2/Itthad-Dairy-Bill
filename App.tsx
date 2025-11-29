@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { CustomerData, BillingData, MilkDetails } from './types';
 import { generateSlip } from './services/pdfService';
@@ -18,22 +17,91 @@ interface MilkInputSectionProps {
 const MilkInputSection: React.FC<MilkInputSectionProps> = ({ title, data, daysInMonth, onChange, colorClass }) => {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Auto-calc effect internal to this section
+  // Local state for inputs to allow smooth typing (handling "0." and empty strings)
+  // We initialize from props, converting 0 to empty string for cleaner UI if desired, or keeping 0 if explicit.
+  // Here we keep 0 as string "0" if it exists, or empty if it was 0 from default but we want placeholder to show.
+  // However, usually better to show what's there.
+  const [rateStr, setRateStr] = useState(data.rate > 0 ? data.rate.toString() : '');
+  const [dailyStr, setDailyStr] = useState(data.dailyLiters > 0 ? data.dailyLiters.toString() : '');
+  const [totalStr, setTotalStr] = useState(data.totalLiters > 0 ? data.totalLiters.toString() : '');
+
+  // --- SYNC EFFECTS (Props -> Local State) ---
+  // If the parent updates the data (e.g. reset button or auto-calc), we update local strings.
+  // We check to ensure we don't overwrite user typing with same numeric value.
+
+  useEffect(() => {
+    const num = parseFloat(rateStr);
+    const validNum = isNaN(num) ? 0 : num;
+    if (validNum !== data.rate) {
+      setRateStr(data.rate === 0 ? '' : data.rate.toString());
+    }
+  }, [data.rate]);
+
+  useEffect(() => {
+    const num = parseFloat(dailyStr);
+    const validNum = isNaN(num) ? 0 : num;
+    if (validNum !== data.dailyLiters) {
+      setDailyStr(data.dailyLiters === 0 ? '' : data.dailyLiters.toString());
+    }
+  }, [data.dailyLiters]);
+
+  useEffect(() => {
+    const num = parseFloat(totalStr);
+    const validNum = isNaN(num) ? 0 : num;
+    // For total, we want to allow auto-updates from calculation to reflect here
+    if (validNum !== data.totalLiters) {
+       // formatted to remove trailing zeros if integer
+       const val = data.totalLiters === 0 ? '' : parseFloat(data.totalLiters.toFixed(2)).toString();
+       setTotalStr(val);
+    }
+  }, [data.totalLiters]);
+
+  // --- AUTO CALCULATION LOGIC ---
   useEffect(() => {
     if (!data.isManualTotal) {
-      const calcTotal = data.dailyLiters * daysInMonth;
-      const calcAmount = calcTotal * data.rate;
-      // Only update if values actually changed to prevent infinite loops
+      const dailyVal = parseFloat(dailyStr) || 0;
+      const rateVal = parseFloat(rateStr) || 0;
+      
+      const calcTotal = dailyVal * daysInMonth;
+      const calcAmount = calcTotal * rateVal;
+      
+      // Update parent only if changed to prevent loops
       if (calcTotal !== data.totalLiters || calcAmount !== data.amount) {
         onChange({ ...data, totalLiters: calcTotal, amount: calcAmount });
       }
     } else {
-      const calcAmount = data.totalLiters * data.rate;
+      // Manual Total Mode
+      const totalVal = parseFloat(totalStr) || 0;
+      const rateVal = parseFloat(rateStr) || 0;
+      const calcAmount = totalVal * rateVal;
+      
       if (calcAmount !== data.amount) {
          onChange({ ...data, amount: calcAmount });
       }
     }
-  }, [data.dailyLiters, data.rate, data.isManualTotal, data.totalLiters, daysInMonth]);
+  }, [dailyStr, rateStr, totalStr, daysInMonth, data.isManualTotal]);
+
+  // --- HANDLERS ---
+  const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setRateStr(val);
+    const num = parseFloat(val);
+    onChange({ ...data, rate: isNaN(num) ? 0 : num });
+  };
+
+  const handleDailyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setDailyStr(val);
+    const num = parseFloat(val);
+    onChange({ ...data, dailyLiters: isNaN(num) ? 0 : num });
+  };
+
+  const handleTotalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTotalStr(val);
+    const num = parseFloat(val);
+    onChange({ ...data, totalLiters: isNaN(num) ? 0 : num });
+  };
 
   return (
     <div className={`rounded-xl border ${colorClass} overflow-hidden mb-4 transition-all duration-300`}>
@@ -51,16 +119,16 @@ const MilkInputSection: React.FC<MilkInputSectionProps> = ({ title, data, daysIn
             <InputField 
               label="Rate per Liter (Rs)" 
               type="number" 
-              value={data.rate} 
-              onChange={(e) => onChange({ ...data, rate: parseFloat(e.target.value) || 0 })}
+              value={rateStr} 
+              onChange={handleRateChange}
             />
             <InputField 
               label="Liters per Day" 
               type="number"
               step="0.5" 
               disabled={data.isManualTotal}
-              value={data.dailyLiters} 
-              onChange={(e) => onChange({ ...data, dailyLiters: parseFloat(e.target.value) || 0 })}
+              value={dailyStr} 
+              onChange={handleDailyChange}
             />
           </div>
 
@@ -83,9 +151,9 @@ const MilkInputSection: React.FC<MilkInputSectionProps> = ({ title, data, daysIn
               label={`Total ${title} Liters`} 
               type="number"
               step="0.5"
-              value={data.totalLiters}
+              value={totalStr}
               disabled={!data.isManualTotal}
-              onChange={(e) => onChange({ ...data, totalLiters: parseFloat(e.target.value) || 0 })}
+              onChange={handleTotalChange}
               className={data.isManualTotal ? "opacity-100" : "opacity-75"}
             />
             <div className="mt-2 text-right text-sm font-medium text-gray-500">
@@ -132,7 +200,8 @@ const App: React.FC = () => {
     dueAmount: 0,
     selection: 'Buffalo',
     buffalo: { ...defaultMilkState },
-    cow: { ...defaultMilkState, rate: 180 }, // Default cow rate slightly different usually
+    cow: { ...defaultMilkState, rate: 180 }, 
+    mix: { ...defaultMilkState, rate: 190 }, 
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -196,7 +265,9 @@ const App: React.FC = () => {
   
   const buffaloTotal = billing.selection === 'Buffalo' || billing.selection === 'Both' ? billing.buffalo.amount : 0;
   const cowTotal = billing.selection === 'Cow' || billing.selection === 'Both' ? billing.cow.amount : 0;
-  const currentBillTotal = buffaloTotal + cowTotal;
+  const mixTotal = billing.selection === 'Mix' ? billing.mix.amount : 0;
+
+  const currentBillTotal = buffaloTotal + cowTotal + mixTotal;
   const totalPayable = currentBillTotal + (billing.dueAmount || 0);
 
   return (
@@ -300,7 +371,7 @@ const App: React.FC = () => {
                 <div>
                    <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">Select Milk Type</label>
                    <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-                      {(['Buffalo', 'Cow', 'Both'] as const).map(type => (
+                      {(['Buffalo', 'Cow', 'Mix', 'Both'] as const).map(type => (
                         <button
                           key={type}
                           onClick={() => setBilling({...billing, selection: type})}
@@ -335,6 +406,16 @@ const App: React.FC = () => {
                       daysInMonth={billing.daysInMonth}
                       colorClass="border-emerald-200 dark:border-emerald-900"
                       onChange={(updated) => setBilling(prev => ({...prev, cow: updated}))}
+                    />
+                  )}
+
+                  {(billing.selection === 'Mix') && (
+                    <MilkInputSection 
+                      title="Mix" 
+                      data={billing.mix}
+                      daysInMonth={billing.daysInMonth}
+                      colorClass="border-purple-200 dark:border-purple-900"
+                      onChange={(updated) => setBilling(prev => ({...prev, mix: updated}))}
                     />
                   )}
                 </div>
@@ -383,6 +464,14 @@ const App: React.FC = () => {
                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
                         <span>Cow ({billing.cow.totalLiters.toFixed(1)} L):</span>
                         <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.cow.amount.toLocaleString()}</span>
+                     </div>
+                  )}
+
+                  {/* Mix Summary */}
+                  {(billing.selection === 'Mix') && (
+                     <div className="flex justify-between text-gray-600 dark:text-gray-400">
+                        <span>Mix ({billing.mix.totalLiters.toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.mix.amount.toLocaleString()}</span>
                      </div>
                   )}
 

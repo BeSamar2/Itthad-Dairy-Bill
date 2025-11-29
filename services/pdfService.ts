@@ -192,6 +192,15 @@ export const generateSlip = async (
     });
   }
 
+  if (billing.selection === 'Mix') {
+    rows.push({
+      desc: 'Milk (Mix)',
+      qty: billing.mix.totalLiters,
+      rate: billing.mix.rate,
+      amt: billing.mix.amount
+    });
+  }
+
   let rowY = tableTop - 30; // Start of data rows area
   
   // Draw header bottom line
@@ -241,22 +250,54 @@ export const generateSlip = async (
 
   // --- 5. FOOTER ---
   
-  const footerY = 180; 
+  const footerStartY = 160; 
   
-  const paymentText = "Payment Term : Account Holder : Inzimam Ul Haq : 03065278010 : JazzCash";
-  const paymentWidth = helvetica.widthOfTextAtSize(paymentText, 9);
-  page.drawText(paymentText, { 
-      x: (width - paymentWidth) / 2, 
-      y: footerY, 
-      size: 9, 
-      font: helvetica 
+  // Line 1: Heading
+  const termHeader = "Payment Terms";
+  const termHeaderWidth = helveticaBold.widthOfTextAtSize(termHeader, 12);
+  page.drawText(termHeader, {
+      x: (width - termHeaderWidth) / 2,
+      y: footerStartY,
+      size: 12,
+      font: helveticaBold
   });
 
-  const thanksText = "Thank you for your business!";
+  // Line 2: Instruction
+  const instruction = "Please make payment to the following account:";
+  const instructionWidth = helvetica.widthOfTextAtSize(instruction, 10);
+  page.drawText(instruction, {
+      x: (width - instructionWidth) / 2,
+      y: footerStartY - 18,
+      size: 10,
+      font: helvetica
+  });
+
+  // Line 3: Account Holder (Bold)
+  const accHolder = "Account Title: Inzimam Ul Haq";
+  const accHolderWidth = helveticaBold.widthOfTextAtSize(accHolder, 12);
+  page.drawText(accHolder, {
+      x: (width - accHolderWidth) / 2,
+      y: footerStartY - 40,
+      size: 12,
+      font: helveticaBold
+  });
+
+  // Line 4: Faysal Bank (Bigger, Bold)
+  const faysalBank = "Faysal Bank: 3309301000001174";
+  const faysalBankWidth = helveticaBold.widthOfTextAtSize(faysalBank, 14);
+  page.drawText(faysalBank, {
+      x: (width - faysalBankWidth) / 2,
+      y: footerStartY - 60,
+      size: 14,
+      font: helveticaBold
+  });
+
+  // Line 5: Closing
+  const thanksText = "Thank you for your continued trust and business!";
   const thanksWidth = helveticaBold.widthOfTextAtSize(thanksText, 12);
   page.drawText(thanksText, { 
       x: (width - thanksWidth) / 2, 
-      y: footerY - 40, 
+      y: footerStartY - 90, 
       size: 12, 
       font: helveticaBold 
   });
