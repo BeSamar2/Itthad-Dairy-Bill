@@ -1,4 +1,3 @@
-
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { CustomerData, BillingData } from '../types';
 import { ASSETS } from '../assets';
@@ -32,28 +31,50 @@ export const generateSlip = async (
 
   // --- 1. HEADER SECTION ---
   
-  // Attempt to load Logo onto the PDF
+  // Load Logo onto the PDF (Handling Base64)
   try {
-    const logoRes = await fetch(ASSETS.LOGO);
-    if (logoRes.ok) {
-      const logoImageBytes = await logoRes.arrayBuffer();
-      let logoImage;
-      try {
-          logoImage = await pdfDoc.embedPng(logoImageBytes);
-      } catch {
-          logoImage = await pdfDoc.embedJpg(logoImageBytes);
-      }
-      
-      const logoDims = logoImage.scale(0.25); 
-      
-      // Draw Logo on top left
-      page.drawImage(logoImage, {
-        x: 40,
-        y: height - 140, 
-        width: logoDims.width,
-        height: logoDims.height,
-      });
+    let logoImageBytes: Uint8Array;
+    
+    if (ASSETS.LOGO.startsWith('data:image')) {
+        // Handle Base64 Data URL
+        const base64Data = ASSETS.LOGO.split(',')[1];
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        logoImageBytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            logoImageBytes[i] = binaryString.charCodeAt(i);
+        }
+    } else {
+        // Handle File Path URL
+        const logoRes = await fetch(ASSETS.LOGO);
+        if (!logoRes.ok) throw new Error("Logo fetch failed");
+        logoImageBytes = new Uint8Array(await logoRes.arrayBuffer());
     }
+
+    let logoImage;
+    try {
+        logoImage = await pdfDoc.embedPng(logoImageBytes);
+    } catch {
+        logoImage = await pdfDoc.embedJpg(logoImageBytes);
+    }
+    
+    // Smart Scaling: constrain to 80x80 box
+    const maxW = 80;
+    const maxH = 80;
+    const scaleX = maxW / logoImage.width;
+    const scaleY = maxH / logoImage.height;
+    const scale = Math.min(scaleX, scaleY); 
+    
+    const logoDims = logoImage.scale(scale);
+    
+    // Draw Logo on top left
+    page.drawImage(logoImage, {
+      x: 40,
+      y: height - 130, // Positioned near top
+      width: logoDims.width,
+      height: logoDims.height,
+    });
+
   } catch (e) {
     console.warn("Logo load failed for PDF", e);
   }
