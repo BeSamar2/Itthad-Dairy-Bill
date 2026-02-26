@@ -228,7 +228,8 @@ export const generateSlip = async (
   const valueX = 480;
 
   const dueAmount = billing.dueAmount || 0;
-  const payable = currentBillTotal + dueAmount;
+  const discount = billing.discount || 0;
+  const payable = currentBillTotal + dueAmount - discount;
 
   // Total Label & Value
   page.drawText('Total:', { x: labelX, y: totalsY, size: 12, font: helveticaBold });
@@ -238,9 +239,13 @@ export const generateSlip = async (
   page.drawText('Due Amount:', { x: labelX, y: totalsY - 20, size: 11, font: helvetica });
   page.drawText(`Rs. ${dueAmount.toLocaleString()}`, { x: valueX, y: totalsY - 20, size: 11, font: helvetica });
 
+  // Discount
+  page.drawText('Discount:', { x: labelX, y: totalsY - 40, size: 11, font: helvetica });
+  page.drawText(`Rs. ${discount.toLocaleString()}`, { x: valueX, y: totalsY - 40, size: 11, font: helvetica });
+
   // Payable
-  page.drawText('Payable:', { x: labelX, y: totalsY - 40, size: 11, font: helvetica });
-  page.drawText(`Rs. ${payable.toLocaleString()}`, { x: valueX, y: totalsY - 40, size: 11, font: helvetica });
+  page.drawText('Payable:', { x: labelX, y: totalsY - 60, size: 11, font: helvetica });
+  page.drawText(`Rs. ${payable.toLocaleString()}`, { x: valueX, y: totalsY - 60, size: 11, font: helvetica });
 
 
   // --- 5. FOOTER ---
@@ -299,4 +304,71 @@ export const generateSlip = async (
 
   const pdfBytes = await pdfDoc.save();
   return pdfBytes;
+};
+
+/**
+ * Generate PDF and convert to PNG image
+ */
+export const generateSlipAsImage = async (
+  customer: CustomerData,
+  billing: BillingData
+): Promise<Blob> => {
+  try {
+    // First generate the PDF
+    console.log('Generating PDF for image conversion...');
+    const pdfBytes = await generateSlip(customer, billing);
+    console.log('PDF generated, size:', pdfBytes.length);
+    
+    // Use pdfjs-dist to render
+    const pdfjsLib = await import('pdfjs-dist');
+    console.log('PDF.js loaded, version:', pdfjsLib.version);
+    
+    // Set worker source to local file in public folder
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    
+    console.log('Loading PDF document...');
+    const loadingTask = pdfjsLib.getDocument({ data: pdfBytes });
+    const pdf = await loadingTask.promise;
+    console.log('PDF loaded, pages:', pdf.numPages);
+    
+    const pdfPage = await pdf.getPage(1);
+    console.log('Got first page');
+    
+    // Create a canvas to render the PDF
+    const scale = 2; // Higher scale for better quality
+    const viewport = pdfPage.getViewport({ scale });
+    console.log('Viewport:', viewport.width, 'x', viewport.height);
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) throw new Error('Could not get canvas context');
+    
+    console.log('Rendering PDF to canvas...');
+    // Render PDF page to canvas
+    const renderContext = {
+      canvasContext: ctx,
+      viewport: viewport
+    };
+    
+    await pdfPage.render(renderContext as any).promise;
+    console.log('PDF rendered to canvas successfully');
+    
+    // Convert canvas to blob
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          console.log('Canvas converted to blob, size:', blob.size);
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to convert canvas to blob'));
+        }
+      }, 'image/png');
+    });
+  } catch (error) {
+    console.error('Error in generateSlipAsImage:', error);
+    throw error;
+  }
 };

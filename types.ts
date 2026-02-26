@@ -19,6 +19,7 @@ export interface BillingData {
   year: number;
   daysInMonth: number;
   dueAmount?: number;
+  discount?: number;
   
   // Selection Mode: 'Both' implies Cow + Buffalo
   selection: 'Buffalo' | 'Cow' | 'Mix' | 'Both';

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { CustomerData, BillingData, MilkDetails } from './types';
-import { generateSlip } from './services/pdfService';
+import { generateSlip, generateSlipAsImage } from './services/pdfService';
 import Header from './components/Header';
 import InputField from './components/InputField';
-import { Download, Calculator, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Calculator, RefreshCw, ChevronDown, ChevronUp, FileText, Image } from 'lucide-react';
 
 // --- HELPER COMPONENT FOR MILK INPUTS ---
 interface MilkInputSectionProps {
@@ -186,7 +186,7 @@ const App: React.FC = () => {
   });
 
   const defaultMilkState: MilkDetails = {
-    rate: 200,
+    rate: 220,
     dailyLiters: 5,
     totalLiters: 0,
     amount: 0,
@@ -198,13 +198,15 @@ const App: React.FC = () => {
     year: new Date().getFullYear(),
     daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
     dueAmount: 0,
+    discount: 0,
     selection: 'Buffalo',
     buffalo: { ...defaultMilkState },
-    cow: { ...defaultMilkState, rate: 180 }, 
+    cow: { ...defaultMilkState, rate: 190 }, 
     mix: { ...defaultMilkState, rate: 190 }, 
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [downloadFormat, setDownloadFormat] = useState<'pdf' | 'image'>('pdf');
 
   // --- EFFECTS ---
 
@@ -234,21 +236,36 @@ const App: React.FC = () => {
   const handleGeneratePDF = async () => {
     setIsGenerating(true);
     try {
-      const pdfBytes = await generateSlip(customer, billing);
-      
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
       const safeName = customer.name.replace(/[^a-z0-9]/gi, '_').substring(0, 20) || 'Customer';
       const monthName = new Date(0, parseInt(billing.month)).toLocaleString('default', { month: 'long' });
-      link.setAttribute('download', `Bill_${safeName}_${monthName}_${billing.year}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
+      
+      if (downloadFormat === 'pdf') {
+        // Generate PDF
+        const pdfBytes = await generateSlip(customer, billing);
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Bill_${safeName}_${monthName}_${billing.year}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Generate Image
+        const imageBlob = await generateSlipAsImage(customer, billing);
+        const url = window.URL.createObjectURL(imageBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Bill_${safeName}_${monthName}_${billing.year}.png`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }
     } catch (error) {
-      console.error("Error generating PDF", error);
-      alert("Failed to generate PDF. Check console for details.");
+      console.error("Error generating file", error);
+      alert(`Failed to generate ${downloadFormat.toUpperCase()}. Check console for details.`);
     } finally {
       setIsGenerating(false);
     }
@@ -268,7 +285,7 @@ const App: React.FC = () => {
   const mixTotal = billing.selection === 'Mix' ? billing.mix.amount : 0;
 
   const currentBillTotal = buffaloTotal + cowTotal + mixTotal;
-  const totalPayable = currentBillTotal + (billing.dueAmount || 0);
+  const totalPayable = currentBillTotal + (billing.dueAmount || 0) - (billing.discount || 0);
 
   return (
     <div className="min-h-screen pb-12 transition-colors duration-200">
@@ -348,7 +365,7 @@ const App: React.FC = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                    <InputField 
                       label="Days in Month" 
                       type="number" 
@@ -361,6 +378,13 @@ const App: React.FC = () => {
                       type="number"
                       value={billing.dueAmount || ''}
                       onChange={(e) => setBilling({...billing, dueAmount: parseFloat(e.target.value) || 0})}
+                      placeholder="0"
+                    />
+                    <InputField 
+                      label="Discount" 
+                      type="number"
+                      value={billing.discount || ''}
+                      onChange={(e) => setBilling({...billing, discount: parseFloat(e.target.value) || 0})}
                       placeholder="0"
                     />
                 </div>
@@ -488,9 +512,42 @@ const App: React.FC = () => {
                       <span className="font-medium">+ Rs. {billing.dueAmount.toLocaleString()}</span>
                     </div>
                   ) : null}
+
+                  {billing.discount && billing.discount > 0 ? (
+                    <div className="flex justify-between text-green-500 dark:text-green-400">
+                      <span>Discount:</span>
+                      <span className="font-medium">- Rs. {billing.discount.toLocaleString()}</span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex flex-col gap-3 mt-6">
+                  {/* Download Format Selection */}
+                  <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                    <button
+                      onClick={() => setDownloadFormat('pdf')}
+                      className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium transition-all ${
+                        downloadFormat === 'pdf'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>PDF</span>
+                    </button>
+                    <button
+                      onClick={() => setDownloadFormat('image')}
+                      className={`flex items-center justify-center gap-2 py-2 px-3 rounded-md font-medium transition-all ${
+                        downloadFormat === 'image'
+                          ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <Image className="w-4 h-4" />
+                      <span>Image</span>
+                    </button>
+                  </div>
+
                   <button
                     onClick={handleGeneratePDF}
                     disabled={isGenerating}
@@ -501,7 +558,7 @@ const App: React.FC = () => {
                     ) : (
                       <>
                         <Download className="w-5 h-5" />
-                        Download Slip
+                        Download as {downloadFormat.toUpperCase()}
                       </>
                     )}
                   </button>
