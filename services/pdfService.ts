@@ -6,23 +6,9 @@ export const generateSlip = async (
   customer: CustomerData,
   billing: BillingData
 ): Promise<Uint8Array> => {
-  let pdfDoc: PDFDocument;
-
-  // 1. Try to load external Template
-  try {
-    const existingPdfBytes = await fetch(ASSETS.PDF_TEMPLATE).then(res => {
-      if (!res.ok) throw new Error("Template not found");
-      return res.arrayBuffer();
-    });
-    pdfDoc = await PDFDocument.load(existingPdfBytes);
-  } catch (e) {
-    console.warn("Template not found at " + ASSETS.PDF_TEMPLATE + ", creating blank A4.", e);
-    pdfDoc = await PDFDocument.create();
-    pdfDoc.addPage([595.28, 841.89]); // A4
-  }
-
-  // Get the first page
-  const page = pdfDoc.getPages()[0];
+  // Create a blank PDF document (not using template to ensure content shows)
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([595.28, 841.89]); // A4 size
   const { width, height } = page.getSize();
   
   // Embed standard fonts
@@ -31,32 +17,19 @@ export const generateSlip = async (
 
   // --- 1. HEADER SECTION ---
   
-  // Load Logo onto the PDF (Handling Base64)
+  // Load Logo onto the PDF
   try {
-    let logoImageBytes: Uint8Array;
-    
-    if (ASSETS.LOGO.startsWith('data:image')) {
-        // Handle Base64 Data URL
-        const base64Data = ASSETS.LOGO.split(',')[1];
-        const binaryString = atob(base64Data);
-        const len = binaryString.length;
-        logoImageBytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            logoImageBytes[i] = binaryString.charCodeAt(i);
-        }
-    } else {
-        // Handle File Path URL
-        const logoRes = await fetch(ASSETS.LOGO);
-        if (!logoRes.ok) throw new Error("Logo fetch failed");
-        logoImageBytes = new Uint8Array(await logoRes.arrayBuffer());
-    }
+    console.log('Logo path:', ASSETS.LOGO);
+    // Fetch the logo image
+    const logoRes = await fetch(ASSETS.LOGO);
+    console.log('Logo fetch response:', logoRes.status, logoRes.ok);
+    if (!logoRes.ok) throw new Error("Logo fetch failed");
+    const logoImageBytes = new Uint8Array(await logoRes.arrayBuffer());
+    console.log('Logo bytes loaded:', logoImageBytes.length);
 
-    let logoImage;
-    try {
-        logoImage = await pdfDoc.embedPng(logoImageBytes);
-    } catch {
-        logoImage = await pdfDoc.embedJpg(logoImageBytes);
-    }
+    // Embed as PNG
+    const logoImage = await pdfDoc.embedPng(logoImageBytes);
+    console.log('Logo embedded successfully');
     
     // Smart Scaling: constrain to 80x80 box
     const maxW = 80;
@@ -74,9 +47,10 @@ export const generateSlip = async (
       width: logoDims.width,
       height: logoDims.height,
     });
+    console.log('Logo drawn at position (40, ' + (height - 130) + ')');
 
   } catch (e) {
-    console.warn("Logo load failed for PDF", e);
+    console.error("Logo load failed for PDF:", e);
   }
 
   // Center Text Header
