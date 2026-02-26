@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CustomerData, BillingData, MilkDetails } from './types';
+import { CustomerData, BillingData, MilkDetails, DateBasedMilkDetails, DailyEntry } from './types';
 import { generateSlip, generateSlipAsImage } from './services/pdfService';
 import Header from './components/Header';
 import InputField from './components/InputField';
-import { Download, Calculator, RefreshCw, ChevronDown, ChevronUp, FileText, Image } from 'lucide-react';
+import DailyEntryInput from './components/DailyEntryInput';
+import { Download, Calculator, RefreshCw, ChevronDown, ChevronUp, FileText, Image, Calendar, List } from 'lucide-react';
 
 // --- HELPER COMPONENT FOR MILK INPUTS ---
 interface MilkInputSectionProps {
@@ -193,16 +194,34 @@ const App: React.FC = () => {
     isManualTotal: false
   };
 
+  const defaultDateBasedMilkState: DateBasedMilkDetails = {
+    rate: 220,
+    entries: [],
+    totalLiters: 0,
+    totalAmount: 0
+  };
+
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   const [billing, setBilling] = useState<BillingData>({
+    billingMode: 'monthly',
     month: new Date().getMonth().toString(), // 0-11
     year: new Date().getFullYear(),
     daysInMonth: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
+    startDate: getTodayDate(),
+    endDate: getTodayDate(),
     dueAmount: 0,
     discount: 0,
     selection: 'Buffalo',
     buffalo: { ...defaultMilkState },
     cow: { ...defaultMilkState, rate: 190 }, 
-    mix: { ...defaultMilkState, rate: 190 }, 
+    mix: { ...defaultMilkState, rate: 190 },
+    buffaloDateBased: { ...defaultDateBasedMilkState },
+    cowDateBased: { ...defaultDateBasedMilkState, rate: 190 },
+    mixDateBased: { ...defaultDateBasedMilkState, rate: 190 },
   });
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -242,7 +261,7 @@ const App: React.FC = () => {
       if (downloadFormat === 'pdf') {
         // Generate PDF
         const pdfBytes = await generateSlip(customer, billing);
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -280,9 +299,18 @@ const App: React.FC = () => {
   // --- CALCULATIONS FOR SUMMARY ---
   const currentMonthName = new Date(0, parseInt(billing.month)).toLocaleString('default', { month: 'long' });
   
-  const buffaloTotal = billing.selection === 'Buffalo' || billing.selection === 'Both' ? billing.buffalo.amount : 0;
-  const cowTotal = billing.selection === 'Cow' || billing.selection === 'Both' ? billing.cow.amount : 0;
-  const mixTotal = billing.selection === 'Mix' ? billing.mix.amount : 0;
+  // Calculate totals based on billing mode
+  const buffaloTotal = billing.billingMode === 'monthly'
+    ? (billing.selection === 'Buffalo' || billing.selection === 'Both' ? billing.buffalo.amount : 0)
+    : (billing.selection === 'Buffalo' || billing.selection === 'Both' ? billing.buffaloDateBased.totalAmount : 0);
+    
+  const cowTotal = billing.billingMode === 'monthly'
+    ? (billing.selection === 'Cow' || billing.selection === 'Both' ? billing.cow.amount : 0)
+    : (billing.selection === 'Cow' || billing.selection === 'Both' ? billing.cowDateBased.totalAmount : 0);
+    
+  const mixTotal = billing.billingMode === 'monthly'
+    ? (billing.selection === 'Mix' ? billing.mix.amount : 0)
+    : (billing.selection === 'Mix' ? billing.mixDateBased.totalAmount : 0);
 
   const currentBillTotal = buffaloTotal + cowTotal + mixTotal;
   const totalPayable = currentBillTotal + (billing.dueAmount || 0) - (billing.discount || 0);
@@ -343,8 +371,86 @@ const App: React.FC = () => {
               
               <div className="p-6 space-y-6">
                 
+                {/* Billing Mode Selection */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 block">Billing Mode</label>
+                  <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                    <button
+                      onClick={() => setBilling({...billing, billingMode: 'monthly'})}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                        billing.billingMode === 'monthly'
+                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <Calendar className="w-4 h-4" />
+                      Monthly Billing
+                    </button>
+                    <button
+                      onClick={() => setBilling({...billing, billingMode: 'date-based'})}
+                      className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-2 ${
+                        billing.billingMode === 'date-based'
+                        ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-300 shadow-sm ring-1 ring-gray-200 dark:ring-gray-500' 
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                      }`}
+                    >
+                      <List className="w-4 h-4" />
+                      Date-Based Billing
+                    </button>
+                  </div>
+                </div>
+
+                <hr className="border-gray-100 dark:border-gray-700" />
+
+                {/* Monthly Billing Fields */}
+                {billing.billingMode === 'monthly' && (
+                  <>
+                    {/* Month Selection */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col">
+                        <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Month</label>
+                        <select 
+                          className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 outline-none transition-colors"
+                          value={billing.month}
+                          onChange={(e) => setBilling({...billing, month: e.target.value})}
+                        >
+                          {Array.from({length: 12}).map((_, i) => (
+                            <option key={i} value={i}>{new Date(0, i).toLocaleString('default', {month: 'long'})}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <InputField 
+                        label="Year" 
+                        type="number" 
+                        value={billing.year} 
+                        onChange={(e) => setBilling({...billing, year: parseInt(e.target.value)})}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Date-Based Billing Fields */}
+                {billing.billingMode === 'date-based' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <InputField 
+                        label="Start Date" 
+                        type="date" 
+                        value={billing.startDate || ''} 
+                        onChange={(e) => setBilling({...billing, startDate: e.target.value})}
+                      />
+                      <InputField 
+                        label="End Date" 
+                        type="date" 
+                        value={billing.endDate || ''} 
+                        onChange={(e) => setBilling({...billing, endDate: e.target.value})}
+                      />
+                    </div>
+                  </>
+                )}
+                
                 {/* Month Selection */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4" style={{display: 'none'}}>
                   <div className="flex flex-col">
                     <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Month</label>
                     <select 
@@ -413,34 +519,182 @@ const App: React.FC = () => {
 
                 {/* DYNAMIC INPUT SECTIONS */}
                 <div className="space-y-4">
-                  {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
-                    <MilkInputSection 
-                      title="Buffalo" 
-                      data={billing.buffalo}
-                      daysInMonth={billing.daysInMonth}
-                      colorClass="border-blue-200 dark:border-blue-900"
-                      onChange={(updated) => setBilling(prev => ({...prev, buffalo: updated}))}
-                    />
+                  {/* Monthly Billing Input */}
+                  {billing.billingMode === 'monthly' && (
+                    <>
+                      {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
+                        <MilkInputSection 
+                          title="Buffalo" 
+                          data={billing.buffalo}
+                          daysInMonth={billing.daysInMonth}
+                          colorClass="border-blue-200 dark:border-blue-900"
+                          onChange={(updated) => setBilling(prev => ({...prev, buffalo: updated}))}
+                        />
+                      )}
+
+                      {(billing.selection === 'Cow' || billing.selection === 'Both') && (
+                        <MilkInputSection 
+                          title="Cow" 
+                          data={billing.cow}
+                          daysInMonth={billing.daysInMonth}
+                          colorClass="border-emerald-200 dark:border-emerald-900"
+                          onChange={(updated) => setBilling(prev => ({...prev, cow: updated}))}
+                        />
+                      )}
+
+                      {(billing.selection === 'Mix') && (
+                        <MilkInputSection 
+                          title="Mix" 
+                          data={billing.mix}
+                          daysInMonth={billing.daysInMonth}
+                          colorClass="border-purple-200 dark:border-purple-900"
+                          onChange={(updated) => setBilling(prev => ({...prev, mix: updated}))}
+                        />
+                      )}
+                    </>
                   )}
 
-                  {(billing.selection === 'Cow' || billing.selection === 'Both') && (
-                    <MilkInputSection 
-                      title="Cow" 
-                      data={billing.cow}
-                      daysInMonth={billing.daysInMonth}
-                      colorClass="border-emerald-200 dark:border-emerald-900"
-                      onChange={(updated) => setBilling(prev => ({...prev, cow: updated}))}
-                    />
-                  )}
+                  {/* Date-Based Billing Input */}
+                  {billing.billingMode === 'date-based' && (
+                    <>
+                      {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
+                        <div className="rounded-xl border border-blue-200 dark:border-blue-900 overflow-hidden">
+                          <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 flex justify-between items-center">
+                            <h4 className="font-bold text-gray-800 dark:text-gray-200">Buffalo Milk Details</h4>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Total: Rs. {billing.buffaloDateBased.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="p-4 bg-white dark:bg-gray-800">
+                            <div className="mb-4">
+                              <InputField 
+                                label="Default Rate per Liter (Rs)" 
+                                type="number" 
+                                value={billing.buffaloDateBased.rate} 
+                                onChange={(e) => {
+                                  const newRate = parseFloat(e.target.value) || 0;
+                                  setBilling(prev => ({
+                                    ...prev, 
+                                    buffaloDateBased: {...prev.buffaloDateBased, rate: newRate}
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <DailyEntryInput
+                              entries={billing.buffaloDateBased.entries}
+                              defaultRate={billing.buffaloDateBased.rate}
+                              minDate={billing.startDate}
+                              maxDate={billing.endDate}
+                              onEntriesChange={(entries) => {
+                                const totalLiters = entries.reduce((sum, e) => sum + e.liters, 0);
+                                const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+                                setBilling(prev => ({
+                                  ...prev,
+                                  buffaloDateBased: {
+                                    ...prev.buffaloDateBased,
+                                    entries,
+                                    totalLiters,
+                                    totalAmount
+                                  }
+                                }));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
 
-                  {(billing.selection === 'Mix') && (
-                    <MilkInputSection 
-                      title="Mix" 
-                      data={billing.mix}
-                      daysInMonth={billing.daysInMonth}
-                      colorClass="border-purple-200 dark:border-purple-900"
-                      onChange={(updated) => setBilling(prev => ({...prev, mix: updated}))}
-                    />
+                      {(billing.selection === 'Cow' || billing.selection === 'Both') && (
+                        <div className="rounded-xl border border-emerald-200 dark:border-emerald-900 overflow-hidden">
+                          <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 flex justify-between items-center">
+                            <h4 className="font-bold text-gray-800 dark:text-gray-200">Cow Milk Details</h4>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Total: Rs. {billing.cowDateBased.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="p-4 bg-white dark:bg-gray-800">
+                            <div className="mb-4">
+                              <InputField 
+                                label="Default Rate per Liter (Rs)" 
+                                type="number" 
+                                value={billing.cowDateBased.rate} 
+                                onChange={(e) => {
+                                  const newRate = parseFloat(e.target.value) || 0;
+                                  setBilling(prev => ({
+                                    ...prev, 
+                                    cowDateBased: {...prev.cowDateBased, rate: newRate}
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <DailyEntryInput
+                              entries={billing.cowDateBased.entries}
+                              defaultRate={billing.cowDateBased.rate}
+                              minDate={billing.startDate}
+                              maxDate={billing.endDate}
+                              onEntriesChange={(entries) => {
+                                const totalLiters = entries.reduce((sum, e) => sum + e.liters, 0);
+                                const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+                                setBilling(prev => ({
+                                  ...prev,
+                                  cowDateBased: {
+                                    ...prev.cowDateBased,
+                                    entries,
+                                    totalLiters,
+                                    totalAmount
+                                  }
+                                }));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {(billing.selection === 'Mix') && (
+                        <div className="rounded-xl border border-purple-200 dark:border-purple-900 overflow-hidden">
+                          <div className="bg-gray-50 dark:bg-gray-700/50 px-4 py-3 flex justify-between items-center">
+                            <h4 className="font-bold text-gray-800 dark:text-gray-200">Mix Milk Details</h4>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                              Total: Rs. {billing.mixDateBased.totalAmount.toLocaleString()}
+                            </span>
+                          </div>
+                          <div className="p-4 bg-white dark:bg-gray-800">
+                            <div className="mb-4">
+                              <InputField 
+                                label="Default Rate per Liter (Rs)" 
+                                type="number" 
+                                value={billing.mixDateBased.rate} 
+                                onChange={(e) => {
+                                  const newRate = parseFloat(e.target.value) || 0;
+                                  setBilling(prev => ({
+                                    ...prev, 
+                                    mixDateBased: {...prev.mixDateBased, rate: newRate}
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <DailyEntryInput
+                              entries={billing.mixDateBased.entries}
+                              defaultRate={billing.mixDateBased.rate}
+                              minDate={billing.startDate}
+                              maxDate={billing.endDate}
+                              onEntriesChange={(entries) => {
+                                const totalLiters = entries.reduce((sum, e) => sum + e.liters, 0);
+                                const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+                                setBilling(prev => ({
+                                  ...prev,
+                                  mixDateBased: {
+                                    ...prev.mixDateBased,
+                                    entries,
+                                    totalLiters,
+                                    totalAmount
+                                  }
+                                }));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -478,24 +732,24 @@ const App: React.FC = () => {
                   {/* Buffalo Summary */}
                   {(billing.selection === 'Buffalo' || billing.selection === 'Both') && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                        <span>Buffalo ({billing.buffalo.totalLiters.toFixed(1)} L):</span>
-                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.buffalo.amount.toLocaleString()}</span>
+                        <span>Buffalo ({billing.billingMode === 'monthly' ? billing.buffalo.totalLiters.toFixed(1) : (billing.buffaloDateBased?.totalLiters || 0).toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {buffaloTotal.toLocaleString()}</span>
                      </div>
                   )}
 
                   {/* Cow Summary */}
                   {(billing.selection === 'Cow' || billing.selection === 'Both') && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                        <span>Cow ({billing.cow.totalLiters.toFixed(1)} L):</span>
-                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.cow.amount.toLocaleString()}</span>
+                        <span>Cow ({billing.billingMode === 'monthly' ? billing.cow.totalLiters.toFixed(1) : (billing.cowDateBased?.totalLiters || 0).toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {cowTotal.toLocaleString()}</span>
                      </div>
                   )}
 
                   {/* Mix Summary */}
                   {(billing.selection === 'Mix') && (
                      <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                        <span>Mix ({billing.mix.totalLiters.toFixed(1)} L):</span>
-                        <span className="font-medium text-gray-900 dark:text-white">Rs. {billing.mix.amount.toLocaleString()}</span>
+                        <span>Mix ({billing.billingMode === 'monthly' ? billing.mix.totalLiters.toFixed(1) : (billing.mixDateBased?.totalLiters || 0).toFixed(1)} L):</span>
+                        <span className="font-medium text-gray-900 dark:text-white">Rs. {mixTotal.toLocaleString()}</span>
                      </div>
                   )}
 

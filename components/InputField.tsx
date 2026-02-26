@@ -6,6 +6,18 @@ interface InputFieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const InputField: React.FC<InputFieldProps> = ({ label, error, className, ...props }) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    // Call the original onKeyDown if provided
+    if (props.onKeyDown) {
+      props.onKeyDown(e);
+    }
+  };
+
   return (
     <div className={`flex flex-col ${className}`}>
       <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 transition-colors">
@@ -22,6 +34,7 @@ const InputField: React.FC<InputFieldProps> = ({ label, error, className, ...pro
           disabled:bg-gray-50 dark:disabled:bg-gray-700 disabled:text-gray-500 dark:disabled:text-gray-400
         `}
         {...props}
+        onKeyDown={handleKeyDown}
       />
       {error && <span className="text-xs text-red-500 mt-1">{error}</span>}
     </div>
